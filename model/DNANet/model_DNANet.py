@@ -72,9 +72,9 @@ class Res_SimAM_block(nn.Module):
         return out
 
 
-class DCANet(nn.Module):
+class DNANet(nn.Module):
     def __init__(self, num_classes=1, input_channels=1, block=Res_SimAM_block, num_blocks=[3, 4, 6, 3], nb_filter=[16, 32, 64, 128, 256], deep_supervision=True, mode='test'):
-        super(DCANet, self).__init__()
+        super(DNANet, self).__init__()
         self.mode = mode
         self.fmap_block = dict()  # 装feature map
         self.grad_block = dict()  # 装梯度
