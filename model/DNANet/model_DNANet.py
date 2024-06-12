@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import math
 
 
 class VGG_CBAM_Block(nn.Module):
@@ -25,20 +26,56 @@ class VGG_CBAM_Block(nn.Module):
         out = self.relu(out)
         return out
 
+# class ChannelAttention(nn.Module):
+#     def __init__(self, in_planes, ratio=16):
+#         super(ChannelAttention, self).__init__()
+#         self.avg_pool = nn.AdaptiveAvgPool2d(1)
+#         self.max_pool = nn.AdaptiveMaxPool2d(1)
+#         self.fc1   = nn.Conv2d(in_planes, in_planes // 16, 1, bias=False)
+#         self.relu1 = nn.ReLU()
+#         self.fc2   = nn.Conv2d(in_planes // 16, in_planes, 1, bias=False)
+#         self.sigmoid = nn.Sigmoid()
+#     def forward(self, x):
+#         avg_out = self.fc2(self.relu1(self.fc1(self.avg_pool(x))))
+#         max_out = self.fc2(self.relu1(self.fc1(self.max_pool(x))))
+#         out = avg_out + max_out
+#         return self.sigmoid(out)
+
+# class SpatialAttention(nn.Module):
+#     def __init__(self, kernel_size=7):
+#         super(SpatialAttention, self).__init__()
+#         assert kernel_size in (3, 7), 'kernel size must be 3 or 7'
+#         padding = 3 if kernel_size == 7 else 1
+#         self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=padding, bias=False)
+#         self.sigmoid = nn.Sigmoid()
+#     def forward(self, x):
+#         avg_out = torch.mean(x, dim=1, keepdim=True)
+#         max_out, _ = torch.max(x, dim=1, keepdim=True)
+#         x = torch.cat([avg_out, max_out], dim=1)
+#         x = self.conv1(x)
+#         return self.sigmoid(x)
+
+
 class ChannelAttention(nn.Module):
-    def __init__(self, in_planes, ratio=16):
+    def __init__(self, c1, k_size=3, gamma=2, b=1):  # k_size: Adaptive selection of kernel size
         super(ChannelAttention, self).__init__()
+
+        self.gamma = gamma
+        self.b = b
+        t = int(abs(math.log(c1, 2) + self.b) / self.gamma)
+        k = t if t % 2 else t + 1
+
+        self.conv = nn.Conv1d(1, 1, kernel_size=k_size, padding=(k_size - 1) // 2, bias=False)
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.max_pool = nn.AdaptiveMaxPool2d(1)
-        self.fc1   = nn.Conv2d(in_planes, in_planes // 16, 1, bias=False)
-        self.relu1 = nn.ReLU()
-        self.fc2   = nn.Conv2d(in_planes // 16, in_planes, 1, bias=False)
         self.sigmoid = nn.Sigmoid()
+
     def forward(self, x):
-        avg_out = self.fc2(self.relu1(self.fc1(self.avg_pool(x))))
-        max_out = self.fc2(self.relu1(self.fc1(self.max_pool(x))))
-        out = avg_out + max_out
-        return self.sigmoid(out)
+        y = self.avg_pool(x)
+        y = self.conv(y.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
+        y = self.sigmoid(y)
+
+        return y.expand_as(x)
+
 
 class SpatialAttention(nn.Module):
     def __init__(self, kernel_size=7):
@@ -53,6 +90,12 @@ class SpatialAttention(nn.Module):
         x = torch.cat([avg_out, max_out], dim=1)
         x = self.conv1(x)
         return self.sigmoid(x)
+
+
+
+
+
+
 
 class Res_CBAM_block(nn.Module):
     def __init__(self, in_channels, out_channels, stride = 1):
